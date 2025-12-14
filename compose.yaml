@@ -1,0 +1,16 @@
+services:
+  db:
+    image: postgres:16
+    container_name: ukemeny-postgres
+    environment:
+      POSTGRES_DB: ukemeny
+      POSTGRES_USER: ukemeny
+      POSTGRES_PASSWORD: ukemeny
+    ports:
+      - "5432:5432"
+    volumes:
+      - ukemeny_pgdata:/var/lib/postgresql/data
+
+volumes:
+  ukemeny_pgdata:
+
