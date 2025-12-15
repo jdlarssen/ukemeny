@@ -1,0 +1,17 @@
+insert into category (name, sort_order) values
+                                            ('Frukt & grønt', 1),
+                                            ('Brød & bakervarer', 2),
+                                            ('Meieri & egg', 3),
+                                            ('Pålegg & ost', 4),
+                                            ('Kjøtt', 5),
+                                            ('Fisk & sjømat', 6),
+                                            ('Vegetar', 7),
+                                            ('Frysevarer', 8),
+                                            ('Tørrvarer', 9),
+                                            ('Hermetikk', 10),
+                                            ('Krydder & sauser', 11),
+                                            ('Snacks & godteri', 12),
+                                            ('Drikke', 13),
+                                            ('Hygiene', 14),
+                                            ('Vask & rengjøring', 15),
+                                            ('Diverse', 16);

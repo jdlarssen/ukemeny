@@ -2,8 +2,8 @@
 
 Dette prosjektet er en backend (API) for å:
 - lagre oppskrifter (recipes) med ingredienser
-- generere ukemeny automatisk
-- generere handleliste basert på ukemeny
+  - generere ukemeny automatisk
+  - generere handleliste basert på ukemeny
 
 Målet er å bygge en enkel, fungerende MVP først, og deretter forbedre med bedre variasjon, forklarbarhet (hvorfor ingredienser havner i handlelisten), og låsing/manuell overstyring av dager.
 
@@ -14,24 +14,25 @@ Målet er å bygge en enkel, fungerende MVP først, og deretter forbedre med bed
     - Oppdatere oppskrift (replace items)
     - Slette oppskrift
     - Søk på oppskrifter (Top 10)
-- Ukemeny:
-    - Opprette ukemeny manuelt
-    - Generere ukemeny automatisk for en uke (mandag som startdato)
-    - Forsøker å variere fra forrige uke når mulig
-- Handleliste:
-    - Generere handleliste fra en ukemeny
-    - Summerer ingredienser på tvers av ukens middager (skiller per unit)
+  - Ukemeny:
+      - Opprette ukemeny manuelt
+      - Generere ukemeny automatisk for en uke (mandag som startdato)
+      - Forsøker å variere fra forrige uke når mulig
+  - Handleliste:
+      - Generere handleliste fra en ukemeny
+      - Summerer ingredienser på tvers av ukens middager (skiller per unit)
+      - Grupperer og sorterer etter kategori (category.sortOrder)
 
 ## Teknologi
 - Java 21 (Temurin)
-- Spring Boot
-- PostgreSQL (Docker)
-- Flyway migrations
-- Maven
+  - Spring Boot
+  - PostgreSQL (Docker)
+  - Flyway migrations
+  - Maven
 
 ## Krav
 - Docker + Docker Compose
-- Java 21
+  - Java 21
 
 ## Kom i gang
 Appen kjører på http://localhost:8080.
@@ -42,8 +43,16 @@ docker compose ps
 ```
 ### 2) Konfig (lokalt)
 Appen bruker Postgres i Docker. Konfig ligger i:
-- `src/main/resources/application.properties`
+- `src/main/resources/application.yml`
 
+Datasource konfigureres med environment variables.
+Lag en '.env' lokalt, f.eks:
+
+```
+DB_URL=jdbc:postgresql://localhost:5432/ukemeny
+DB_USERNAME=ukemeny
+DB_PASSWORD=ukemeny
+```
 ### 3) Start appen
 ```bash
 ./mvnw spring-boot:run
@@ -109,14 +118,44 @@ curl "http://localhost:8080/weekly-menus/4"
 ```bash
 curl "http://localhost:8080/weekly-menus/4/shopping-list"
 ```
+### Categories
+```bash
+curl "http://localhost:8080/categories
+```
+### Ingredients
+#### List:
+```bash
+curl "http://localhost:8080/ingredients"
+```
+#### Sett kategori (single):
+```bash
+curl -i -X PATCH "http://localhost:8080/ingredients/5/category" \
+  -H "Content-Type: application/json" \
+  -d '{ "categoryId": 12 }'
+```
+#### Sett kategori (bulk):
+```bash
+curl -i -X PATCH "http://localhost:8080/ingredients/category" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "updates": [
+      { "ingredientId": 6, "categoryId": 7 },
+      { "ingredientId": 4, "categoryId": 6 }
+    ]
+  }'
+```
+#### Slett (kun hvis ubrukt):
+```bash
+curl -i -X DELETE "http://localhost:8080/ingredients/<ID>"
+```
 
 ## Notater / MVP-avgrensninger
 - Kun middag (ingen frokost/lunsj)
-- Porsjoner er ikke modellert i MVP (antatt 2 porsjoner)
-- Unikhet for ingrediens håndheves i database (case-insensitive håndteres i service)
-- Ukemeny kan ha repeats hvis det fins færre enn 7 oppskrifter
+  - Porsjoner er ikke modellert i MVP (antatt 2 porsjoner)
+  - Unikhet for ingrediens håndheves i database (case-insensitive håndteres i service)
+  - Ukemeny kan ha repeats hvis det fins færre enn 7 oppskrifter
 
 ## Plan videre
-- A: Handleliste "forklarbarhet" (hvilke oppskrifter/dager bidro til hver linje)
-- B: Kategorisering og gruppering i handleliste 
-- C: Låsing av dager (manuelt valg) + autogenerer resten
+- A: GitHub Actions: build + test
+- B: Tester
+- C: Swagger/OpenAPI

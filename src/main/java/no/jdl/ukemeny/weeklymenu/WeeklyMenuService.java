@@ -2,29 +2,21 @@ package no.jdl.ukemeny.weeklymenu;
 
 import no.jdl.ukemeny.common.NotFoundException;
 import no.jdl.ukemeny.recipe.RecipeRepository;
-import no.jdl.ukemeny.weeklymenu.api.CreateWeeklyMenuRequest;
-import no.jdl.ukemeny.weeklymenu.api.WeeklyMenuDayResponse;
-import no.jdl.ukemeny.weeklymenu.api.WeeklyMenuResponse;
-import no.jdl.ukemeny.weeklymenu.api.ShoppingListItemResponse;
-import no.jdl.ukemeny.weeklymenu.api.ShoppingListResponse;
+import no.jdl.ukemeny.weeklymenu.api.*;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.domain.PageRequest;
 
+import java.math.BigDecimal;
 import java.time.DayOfWeek;
-import java.util.Comparator;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Random;
+import java.util.*;
 import java.util.stream.Collectors;
-import java.util.LinkedHashMap;
-import java.util.Map;
 
 @Service
 public class WeeklyMenuService {
 
+    private record CatKey(Long categoryId, String categoryName, int sortOrder) {}
     private final WeeklyMenuRepository weeklyMenuRepository;
     private final RecipeRepository recipeRepository;
 
@@ -155,50 +147,94 @@ public class WeeklyMenuService {
         var menu = weeklyMenuRepository.findByIdWithEntries(weeklyMenuId)
                 .orElseThrow(() -> new NotFoundException("Weekly menu not found: " + weeklyMenuId));
 
-        var recipeIds = menu.getEntries().stream()
-                .map(e -> e.getRecipe().getId())
-                .collect(Collectors.toSet());
+        // Key = ingredientsId + unit (samme ingrediens med ulike unit skal ikke blandes)
+        record Key(Long ingredientId, String unit) {
+        }
 
-        var recipes = recipeRepository.findAllByIdWithItems(recipeIds);
+        // Intern accumulator
+        class Acc {
+            Long ingredientId;
+            String ingredientName;
+            Long categoryId;
+            String categoryName;
+            int categorySortOrder;
+            String unit;
+            BigDecimal total = BigDecimal.ZERO;
+            List<ShoppingListItemSource> sources = new ArrayList<>();
 
-        var recipeById = recipes.stream()
-                .collect(Collectors.toMap(r -> r.getId(), r -> r));
+            Acc(Long ingredientId, String ingredientName,
+                Long categoryId, String categoryName, int categorySortOrder,
+                String unit) {
+                this.ingredientId = ingredientId;
+                this.ingredientName = ingredientName;
+                this.categoryId = categoryId;
+                this.categoryName = categoryName;
+                this.categorySortOrder = categorySortOrder;
+                this.unit = unit;
+            }
 
-        // Key = ingredientId + unit (samme ingrediens med ulike unit skal ikke blandes)
-        record Key(Long ingredientId, String unit) {}
-        Map<Key, ShoppingListItemResponse> acc = new LinkedHashMap<>();
-
-        for (var entry : menu.getEntries()) {
-            var recipe = recipeById.get(entry.getRecipe().getId());
-            if (recipe == null) continue; // burde ikke skje
-
-            for (var item : recipe.getItems()) {
-                var ing = item.getIngredient();
-                var key = new Key(ing.getId(), item.getUnit());
-
-                var existing = acc.get(key);
-                if (existing == null) {
-                    acc.put(key, new ShoppingListItemResponse(
-                            ing.getId(),
-                            ing.getName(),
-                            item.getAmount(),
-                            item.getUnit()
-                    ));
-                } else {
-                    acc.put(key, new ShoppingListItemResponse(
-                            existing.ingredientId(),
-                            existing.ingredientName(),
-                            existing.amount().add(item.getAmount()),
-                            existing.unit()
-                    ));
-                }
+            void add(int dayOfWeek, Long recipeId, String recipeName, BigDecimal amount) {
+                total = total.add(amount);
+                sources.add(new ShoppingListItemSource(dayOfWeek, recipeId, recipeName, amount, unit));
             }
         }
 
-        var items = acc.values().stream()
-                .sorted((a, b) -> a.ingredientName().compareToIgnoreCase(b.ingredientName()))
-                .toList();
+        Map<Key, Acc> acc = new LinkedHashMap<>();
 
-        return new ShoppingListResponse(menu.getId(), menu.getWeekStartDate(), items);
+        for (var dayEntry : menu.getEntries()) {
+            var dayOfWeek = dayEntry.getDayOfWeek();
+            var recipe = dayEntry.getRecipe();
+
+            var recipeId = recipe.getId();
+            var recipeName = recipe.getName();
+
+            for (var item : recipe.getItems()) {
+                var ing = item.getIngredient();
+                var unit = item.getUnit();
+                var cat = ing.getCategory();
+                var categoryId = cat.getId();
+                var categoryName = cat.getName();
+                var categorySortOrder = cat.getSortOrder();
+                var key = new Key(ing.getId(), unit);
+                var bucket = acc.get(key);
+                if (bucket == null) {
+                    bucket = new Acc(ing.getId(), ing.getName(), categoryId, categoryName, categorySortOrder, unit);
+                    acc.put(key, bucket);
+                }
+
+                bucket.add(dayOfWeek, recipeId, recipeName, item.getAmount());
+            }
+        }
+
+        //Sorter sources inne i hver accumulator
+        var grouped = acc.values().stream()
+                .collect(Collectors.groupingBy(
+                        a -> new CatKey(a.categoryId, a.categoryName, a.categorySortOrder),
+                        LinkedHashMap::new,
+                        Collectors.toList()
+                ));
+
+        var categories = grouped.entrySet().stream()
+                .sorted(Comparator
+                        .comparingInt((Map.Entry<CatKey, List<Acc>> e) -> e.getKey().sortOrder())
+                        .thenComparing(e -> e.getKey().categoryName(), String.CASE_INSENSITIVE_ORDER)
+                )
+                .map(e -> {
+                    var items = e.getValue().stream()
+                            .peek(a -> a.sources.sort(Comparator.comparingInt(ShoppingListItemSource::dayOfWeek)))
+                            .sorted(Comparator.comparing(a -> a.ingredientName, String.CASE_INSENSITIVE_ORDER))
+                            .map(a -> new ShoppingListItemResponse(
+                                    a.ingredientId,
+                                    a.ingredientName,
+                                    a.total,
+                                    a.unit,
+                                    List.copyOf(a.sources)
+                            ))
+                            .toList();
+
+                    return new ShoppingListCategoryResponse(e.getKey().categoryName(), items);
+                })
+                .toList();
+        return new ShoppingListResponse(menu.getId(), menu.getWeekStartDate(), categories);
     }
 }

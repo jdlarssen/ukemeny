@@ -16,7 +16,9 @@ public class Ingredient {
     @Column(nullable = false, unique = true)
     private String name;
 
-    private String category;
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "category_id", nullable = false)
+    private Category category;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
@@ -24,22 +26,22 @@ public class Ingredient {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt = Instant.now();
 
-    protected Ingredient() {
-        //JPA
-    }
-    public Ingredient(String name, String category){
+    protected Ingredient() {}
+
+    public Ingredient(String name, Category category){
         this.name = name;
         this.category = category;
     }
 
+
     @PreUpdate
-    void preUpdate(){
-        updatedAt = Instant.now();
-    }
+    void preUpdate() { updatedAt = Instant.now(); }
+
+    void setCategory(Category category) { this.category = category; }
 
     public Long getId() { return id; }
     public String getName() { return name; }
-    public String getCategory() { return category; }
+    public Category getCategory() { return category; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
 }

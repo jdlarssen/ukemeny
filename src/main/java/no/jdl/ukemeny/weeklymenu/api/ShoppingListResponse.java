@@ -6,5 +6,5 @@ import java.util.List;
 public record ShoppingListResponse(
         Long weeklyMenuId,
         LocalDate weekStartDate,
-        List<ShoppingListItemResponse> items
+        List<ShoppingListCategoryResponse> categories
 ) {}

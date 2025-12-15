@@ -1,12 +1,14 @@
 package no.jdl.ukemeny.common;
 
 import jakarta.servlet.http.HttpServletRequest;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -34,6 +36,15 @@ public class ApiExceptionHandler {
 
         body.put("fieldErrors", fieldErrors);
         return ResponseEntity.badRequest().body(body);
+    }
+
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<?> handleResponseStatus(ResponseStatusException ex, HttpServletRequest req) {
+        var status = ex.getStatusCode();
+        var http = HttpStatus.valueOf(status.value());
+
+        return ResponseEntity.status(status)
+                .body(baseBody(status.value(), http.getReasonPhrase(), ex.getReason(), req));
     }
 
     @ExceptionHandler(Exception.class)
