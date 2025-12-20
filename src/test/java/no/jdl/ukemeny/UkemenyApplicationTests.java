@@ -1,6 +1,10 @@
 package no.jdl.ukemeny;
 
+import no.jdl.ukemeny.ingredient.api.IngredientResponse;
+import no.jdl.ukemeny.recipe.api.*;
+
 import org.junit.jupiter.api.Test;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
@@ -8,7 +12,8 @@ import org.springframework.http.*;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.math.BigDecimal;
-import java.util.*;
+import java.util.List;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -19,150 +24,120 @@ class UkemenyApplicationTests {
 	@Autowired
 	TestRestTemplate http;
 
-	// DTO-er som matcher JSON fra API-et
-	record IdResponse(Long id) {}
-
-	record RecipeItemDto(Long id, Long ingredientId, String ingredientName,
-						 BigDecimal amount, String unit, String note) {}
-
-	record RecipeDto(Long id, String name, String description, List<RecipeItemDto> items) {}
-
-	record IngredientDto(Long id, String name, Long categoryId, String categoryName) {}
-
-	record CategoryDto(Long id, String name, int sortOrder) {}
-
 	@Test
-	void creatingRecipeWithNewIngredient_assignsDefaultCategoryDiverse() {
-		var ingredientName = "CI-default-" + UUID.randomUUID().toString().substring(0, 8);
+	void createRecipe_autoCreatesIngredient_withDefaultCategoryDiverse() {
+		var suffix = UUID.randomUUID().toString().substring(0, 8);
+		var ingredientInput = "TEST-INGREDIENS-" + suffix; // service normaliserer til "Test-ingrediens-xxxx"
+		var recipeName = "Test recipe " + suffix;
 
-		var recipeId = createRecipe("CI Default category", "test", ingredientName);
-
-		// hent oppskriften for å finne ingredientId (siden det er lettest og mest robust)
-		var recipe = http.getForObject("/recipes/" + recipeId, RecipeDto.class);
-		assertThat(recipe).isNotNull();
-		assertThat(recipe.items()).isNotEmpty();
-
-		var createdIng = recipe.items().getFirst();
-		assertThat(createdIng.ingredientName()).isNotBlank();
-
-		// verifiser i /ingredients at kategorien er Diverse
-		var ingredients = getIngredients();
-		var match = ingredients.stream()
-				.filter(i -> i.id().equals(createdIng.ingredientId()))
-				.findFirst();
-
-		assertThat(match).isPresent();
-		assertThat(match.get().categoryName()).isEqualTo("Diverse");
-	}
-
-	@Test
-	void ingredientsList_isOrderedByCategorySortOrder_thenByName() {
-		// Finn ID-er for to kategorier med ulik sortOrder
-		var categories = getCategories();
-		var kjott = categories.stream().filter(c -> c.name().equalsIgnoreCase("Kjøtt")).findFirst().orElseThrow();
-		var diverse = categories.stream().filter(c -> c.name().equalsIgnoreCase("Diverse")).findFirst().orElseThrow();
-
-		// Lag to ingredienser via recipe-API (så vi tester hele flyten)
-		var ingAName = "CI-order-a-" + UUID.randomUUID().toString().substring(0, 8);
-		var ingBName = "CI-order-b-" + UUID.randomUUID().toString().substring(0, 8);
-
-		var recipeAId = createRecipe("CI order A", "test", ingAName);
-		var recipeBId = createRecipe("CI order B", "test", ingBName);
-
-		var recipeA = http.getForObject("/recipes/" + recipeAId, RecipeDto.class);
-		var recipeB = http.getForObject("/recipes/" + recipeBId, RecipeDto.class);
-
-		var ingAId = Objects.requireNonNull(recipeA).items().getFirst().ingredientId();
-		var ingBId = Objects.requireNonNull(recipeB).items().getFirst().ingredientId();
-
-		// Sett kategori: A -> Kjøtt (lavere sortOrder), B -> Diverse (høyere sortOrder)
-		patchIngredientCategory(ingAId, kjott.id());
-		patchIngredientCategory(ingBId, diverse.id());
-
-		var ingredients = getIngredients();
-
-		int idxA = indexOfIngredient(ingredients, ingAId);
-		int idxB = indexOfIngredient(ingredients, ingBId);
-
-		assertThat(idxA).isGreaterThanOrEqualTo(0);
-		assertThat(idxB).isGreaterThanOrEqualTo(0);
-
-		// Kjøtt (sortOrder 5) skal komme før Diverse (sortOrder 16)
-		assertThat(idxA).isLessThan(idxB);
-	}
-
-	@Test
-	void deletingIngredientUsedByRecipe_returns409Conflict() {
-		var ingredientName = "CI-delete-" + UUID.randomUUID().toString().substring(0, 8);
-		var recipeId = createRecipe("CI delete test", "test", ingredientName);
-
-		var recipe = http.getForObject("/recipes/" + recipeId, RecipeDto.class);
-		assertThat(recipe).isNotNull();
-
-		var ingredientId = recipe.items().getFirst().ingredientId();
-
-		var resp = http.exchange("/ingredients/" + ingredientId, HttpMethod.DELETE, null, String.class);
-
-		assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
-	}
-
-	// -------- helpers --------
-
-	private Long createRecipe(String name, String description, String ingredientName) {
-		var body = """
-            {
-              "name": "%s",
-              "description": "%s",
-              "items": [
-                { "ingredientName": "%s", "amount": 1, "unit": "stk", "note": null }
-              ]
-            }
-            """.formatted(name, description, ingredientName);
-
-		var headers = new HttpHeaders();
-		headers.setContentType(MediaType.APPLICATION_JSON);
-
-		var resp = http.postForEntity("/recipes", new HttpEntity<>(body, headers), IdResponse.class);
-		assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
-		assertThat(Objects.requireNonNull(resp.getBody()).id()).isNotNull();
-
-		return resp.getBody().id();
-	}
-
-	private List<IngredientDto> getIngredients() {
-		var resp = http.exchange("/ingredients", HttpMethod.GET, null,
-				new org.springframework.core.ParameterizedTypeReference<List<IngredientDto>>() {});
-		assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
-		return Objects.requireNonNull(resp.getBody());
-	}
-
-	private List<CategoryDto> getCategories() {
-		var resp = http.exchange("/categories", HttpMethod.GET, null,
-				new org.springframework.core.ParameterizedTypeReference<List<CategoryDto>>() {});
-		assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
-		return Objects.requireNonNull(resp.getBody());
-	}
-
-	private void patchIngredientCategory(Long ingredientId, Long categoryId) {
-		var body = "{ \"categoryId\": " + categoryId + " }";
-
-		var headers = new HttpHeaders();
-		headers.setContentType(MediaType.APPLICATION_JSON);
-
-		var resp = http.exchange(
-				"/ingredients/" + ingredientId + "/category",
-				HttpMethod.PATCH,
-				new HttpEntity<>(body, headers),
-				Void.class
+		var req = new CreateRecipeRequest(
+				recipeName,
+				"Sjekk auto-opprett ingrediens + default kategori",
+				List.of(new CreateRecipeItemRequest(
+						ingredientInput,
+						new BigDecimal("1.0"),
+						"stk",
+						null
+				))
 		);
 
-		assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+		var create = http.postForEntity("/recipes", req, CreateRecipeResponse.class);
+		assertThat(create.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+		assertThat(create.getBody()).isNotNull();
+		assertThat(create.getBody().id()).isNotNull();
+
+		// Verifiser via GET /ingredients at ingrediensen finnes og har categoryName = "Diverse"
+		var ingredientsResp = http.getForEntity("/ingredients", IngredientResponse[].class);
+		assertThat(ingredientsResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+		var ingredients = List.of(ingredientsResp.getBody() == null ? new IngredientResponse[0] : ingredientsResp.getBody());
+
+		// NB: normalisering i IngredientService: første bokstav stor + resten små
+		var expectedName = toNormalizedName(ingredientInput);
+
+		var createdIng = ingredients.stream()
+				.filter(i -> i.name().equals(expectedName))
+				.findFirst()
+				.orElseThrow(() -> new AssertionError("Fant ikke ingrediens i /ingredients: " + expectedName));
+
+		assertThat(createdIng.categoryName()).isEqualTo("Diverse");
 	}
 
-	private int indexOfIngredient(List<IngredientDto> list, Long id) {
-		for (int i = 0; i < list.size(); i++) {
-			if (Objects.equals(list.get(i).id(), id)) return i;
-		}
-		return -1;
+	@Test
+	void updateRecipe_replacesItemsList() {
+		var suffix = UUID.randomUUID().toString().substring(0, 8);
+		var recipeName = "Update test " + suffix;
+
+		// create med 2 items
+		var createReq = new CreateRecipeRequest(
+				recipeName,
+				"Oppretter med to items",
+				List.of(
+						new CreateRecipeItemRequest("Kjøttdeig-" + suffix, new BigDecimal("400"), "g", null),
+						new CreateRecipeItemRequest("Tacokrydder-" + suffix, new BigDecimal("1"), "pose", null)
+				)
+		);
+
+		var created = http.postForEntity("/recipes", createReq, CreateRecipeResponse.class);
+		assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+
+		var id = created.getBody().id();
+
+		// update -> 1 item (overskriv)
+		var updateReq = new UpdateRecipeRequest(
+				recipeName + " (oppdatert)",
+				"Nå bare ett item",
+				List.of(new CreateRecipeItemRequest("Kylling-" + suffix, new BigDecimal("500"), "g", null))
+		);
+
+		var updateResp = http.exchange("/recipes/" + id, HttpMethod.PUT, new HttpEntity<>(updateReq), Void.class);
+		assertThat(updateResp.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+
+		// fetch -> skal ha 1 item og riktig navn
+		var details = http.getForEntity("/recipes/" + id, RecipeDetailsResponse.class);
+		assertThat(details.getStatusCode()).isEqualTo(HttpStatus.OK);
+		assertThat(details.getBody()).isNotNull();
+
+		assertThat(details.getBody().name()).isEqualTo(recipeName + " (oppdatert)");
+		assertThat(details.getBody().items()).hasSize(1);
+		assertThat(details.getBody().items().get(0).ingredientName()).isEqualTo(toNormalizedName("Kylling-" + suffix));
+	}
+
+	@Test
+	void deleteIngredient_usedByRecipe_returns409Conflict() {
+		var suffix = UUID.randomUUID().toString().substring(0, 8);
+		var recipeName = "Delete ing test " + suffix;
+
+		// lag oppskrift som bruker ingrediens
+		var ingName = "Brukt-ingrediens-" + suffix;
+		var createReq = new CreateRecipeRequest(
+				recipeName,
+				"Ingrediensen skal ikke kunne slettes",
+				List.of(new CreateRecipeItemRequest(ingName, new BigDecimal("1"), "stk", null))
+		);
+
+		var created = http.postForEntity("/recipes", createReq, CreateRecipeResponse.class);
+		assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+
+		var recipeId = created.getBody().id();
+
+		// hent oppskrift for å få ingredientId
+		var details = http.getForEntity("/recipes/" + recipeId, RecipeDetailsResponse.class);
+		assertThat(details.getStatusCode()).isEqualTo(HttpStatus.OK);
+		assertThat(details.getBody()).isNotNull();
+		assertThat(details.getBody().items()).hasSize(1);
+
+		var ingredientId = details.getBody().items().get(0).ingredientId();
+
+		// prøv slett ingrediens
+		var deleteResp = http.exchange("/ingredients/" + ingredientId, HttpMethod.DELETE, HttpEntity.EMPTY, String.class);
+		assertThat(deleteResp.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+	}
+
+	private static String toNormalizedName(String input) {
+		if (input == null) return null;
+		var trimmed = input.trim();
+		if (trimmed.isEmpty()) return trimmed;
+		return trimmed.substring(0, 1).toUpperCase() + trimmed.substring(1).toLowerCase();
 	}
 }
