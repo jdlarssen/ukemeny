@@ -2,8 +2,8 @@
 
 Dette prosjektet er en backend (API) for å:
 - lagre oppskrifter (recipes) med ingredienser
-  - generere ukemeny automatisk
-  - generere handleliste basert på ukemeny
+- generere ukemeny automatisk
+- generere handleliste basert på ukemeny
 
 Målet er å bygge en enkel, fungerende MVP først, og deretter forbedre med bedre variasjon, forklarbarhet (hvorfor ingredienser havner i handlelisten), og låsing/manuell overstyring av dager.
 
@@ -14,25 +14,30 @@ Målet er å bygge en enkel, fungerende MVP først, og deretter forbedre med bed
     - Oppdatere oppskrift (replace items)
     - Slette oppskrift
     - Søk på oppskrifter (Top 10)
-  - Ukemeny:
-      - Opprette ukemeny manuelt
-      - Generere ukemeny automatisk for en uke (mandag som startdato)
-      - Forsøker å variere fra forrige uke når mulig
-  - Handleliste:
-      - Generere handleliste fra en ukemeny
-      - Summerer ingredienser på tvers av ukens middager (skiller per unit)
-      - Grupperer og sorterer etter kategori (category.sortOrder)
+    - GET /ingredients (sortert etter category.sortOrder + navn)
+    - PATCH /ingredients/{id}/category
+    - PATCH /ingredients/category (bulk)
+    - DELETE /ingredients/{id} (409 hvis brukt i oppskrift)
+- Ukemeny:
+    - Opprette ukemeny manuelt
+    - Generere ukemeny automatisk for en uke (mandag som startdato)
+    - Forsøker å variere fra forrige uke når mulig
+- Handleliste:
+    - Generere handleliste fra en ukemeny
+    - Summerer ingredienser på tvers av ukens middager (skiller per unit)
+    - Grupperer og sorterer etter kategori (category.sortOrder)
+    - GET /categories (sortert etter sortOrder)
 
 ## Teknologi
 - Java 21 (Temurin)
-  - Spring Boot
-  - PostgreSQL (Docker)
-  - Flyway migrations
-  - Maven
+- Spring Boot
+- PostgreSQL (Docker)
+- Flyway migrations
+- Maven
 
 ## Krav
 - Docker + Docker Compose
-  - Java 21
+- Java 21
 
 ## Kom i gang
 Appen kjører på http://localhost:8080.
@@ -57,6 +62,25 @@ DB_PASSWORD=ukemeny
 ```bash
 ./mvnw spring-boot:run
 ```
+
+## Testing
+Testene kjører mot Postgres og bruker Flyway-migrasjoner.
+
+### Lokalt
+1) Start database: 
+```bash
+docker compose up-d
+```
+2) Kjør tester:
+```bash
+./mvnw test
+```
+### CI (GitHub Actions)
+Workflow starter Postgres som en service-container og kjører
+```bash
+./mvnw test
+```
+
 ## Endepunkter (MVP)
 ### Health
 ```bash 
@@ -120,7 +144,7 @@ curl "http://localhost:8080/weekly-menus/4/shopping-list"
 ```
 ### Categories
 ```bash
-curl "http://localhost:8080/categories
+curl "http://localhost:8080/categories"
 ```
 ### Ingredients
 #### List:
@@ -156,6 +180,6 @@ curl -i -X DELETE "http://localhost:8080/ingredients/<ID>"
   - Ukemeny kan ha repeats hvis det fins færre enn 7 oppskrifter
 
 ## Plan videre
-- A: GitHub Actions: build + test
-- B: Tester
-- C: Swagger/OpenAPI
+- A: Swagger/OpenAPI
+- B: Mer testdekning (shopping list + weekly menu edge cases)
+- C: Admin/vedlikehold: rydde i ingredienser (bulk-oppdatering + sletting)
