@@ -7,5 +7,6 @@ import jakarta.validation.constraints.NotNull;
 public record WeeklyMenuEntryRequest(
         @Min(1) @Max(7) int dayOfWeek,
         @NotNull Long recipeId,
+        Boolean locked,
         String note
 ) {}

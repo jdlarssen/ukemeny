@@ -24,6 +24,9 @@ public class WeeklyMenuEntry {
 
     private String note;
 
+    @Column(name = "locked", nullable = false)
+    private boolean locked = false;
+
     protected WeeklyMenuEntry() {}
 
     public WeeklyMenuEntry(int dayOfWeek, Recipe recipe, String note) {
@@ -35,6 +38,9 @@ public class WeeklyMenuEntry {
     void setWeeklyMenu(WeeklyMenu weeklyMenu) {
         this.weeklyMenu = weeklyMenu;
     }
+
+    public boolean isLocked() { return locked; }
+    public void setLocked(boolean locked) { this.locked = locked; }
 
     public Long getId() { return id; }
     public int getDayOfWeek() { return dayOfWeek; }

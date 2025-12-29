@@ -1,0 +1,2 @@
+ALTER TABLE weekly_menu_entry
+ADD COLUMN locked BOOLEAN NOT NULL DEFAULT FALSE;

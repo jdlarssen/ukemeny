@@ -14,6 +14,7 @@ import org.springframework.test.context.ActiveProfiles;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
+import java.util.Objects;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -139,5 +140,40 @@ class UkemenyApplicationTests {
 		var trimmed = input.trim();
 		if (trimmed.isEmpty()) return trimmed;
 		return trimmed.substring(0, 1).toUpperCase() + trimmed.substring(1).toLowerCase();
+	}
+	@Test
+	void deleteIngredient_unused_returns204_andIngredientIsGone() {
+		var suffix = UUID.randomUUID().toString().substring(0, 8);
+
+		// 1) Opprett oppskrift som lager ingrediens
+		var ingName = "Slettbar-" + suffix;
+		var created = http.postForEntity("/recipes", new CreateRecipeRequest(
+				"Recipe " + suffix,
+				"Skaper ingrediens",
+				List.of(new CreateRecipeItemRequest(ingName, new BigDecimal("1"), "stk", null))
+		), CreateRecipeResponse.class);
+
+		assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+		var recipeId = Objects.requireNonNull(created.getBody()).id();
+
+		// 2) Finn ingredientId fra recipe
+		var details = http.getForEntity("/recipes/" + recipeId, RecipeDetailsResponse.class);
+		assertThat(details.getStatusCode()).isEqualTo(HttpStatus.OK);
+		var ingredientId = Objects.requireNonNull(details.getBody()).items().get(0).ingredientId();
+
+		// 3) Slett oppskrift først (så ingrediens blir ubrukt)
+		var delRecipe = http.exchange("/recipes/" + recipeId, HttpMethod.DELETE, HttpEntity.EMPTY, Void.class);
+		assertThat(delRecipe.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+
+		// 4) Slett ingrediens
+		var delIng = http.exchange("/ingredients/" + ingredientId, HttpMethod.DELETE, HttpEntity.EMPTY, Void.class);
+		assertThat(delIng.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+
+		// 5) Verifiser at den ikke er i /ingredients
+		var ingredientsResp = http.getForEntity("/ingredients", IngredientResponse[].class);
+		assertThat(ingredientsResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+		var ingredients = List.of(Objects.requireNonNullElse(ingredientsResp.getBody(), new IngredientResponse[0]));
+		assertThat(ingredients.stream().anyMatch(i -> i.id().equals(ingredientId))).isFalse();
 	}
 }

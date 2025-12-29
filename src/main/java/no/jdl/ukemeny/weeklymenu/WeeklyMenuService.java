@@ -39,6 +39,7 @@ public class WeeklyMenuService {
                     .orElseThrow(() -> new NotFoundException("Recipe not found: " + d.recipeId()));
 
             var entry = new WeeklyMenuEntry(d.dayOfWeek(), recipe, d.note());
+            entry.setLocked(Boolean.TRUE.equals(d.locked()));
             menu.addEntry(entry);
         }
 
@@ -56,6 +57,7 @@ public class WeeklyMenuService {
                         e.getDayOfWeek(),
                         e.getRecipe().getId(),
                         e.getRecipe().getName(),
+                        e.isLocked(),
                         e.getNote()
                 ))
                 .toList();
@@ -137,7 +139,10 @@ public class WeeklyMenuService {
                 // Bør ikke skje, men gir en ryddig feil om DB endrer seg midt i
                 throw new IllegalArgumentException("Recipe not found during generation: " + recipeId);
             }
-            menu.addEntry(new WeeklyMenuEntry(day, recipe, null));
+            var entry = new WeeklyMenuEntry(day, recipe, null);
+            entry.setLocked(false); // generert = ulåst
+            menu.addEntry(entry);
+
         }
 
         return weeklyMenuRepository.save(menu).getId();

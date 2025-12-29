@@ -4,5 +4,6 @@ public record WeeklyMenuDayResponse(
         int dayOfWeek,
         Long recipeId,
         String recipeName,
+        boolean locked,
         String note
 ) {}
