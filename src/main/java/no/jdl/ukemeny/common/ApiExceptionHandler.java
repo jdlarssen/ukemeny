@@ -46,7 +46,11 @@ public class ApiExceptionHandler {
         return ResponseEntity.status(status)
                 .body(baseBody(status.value(), http.getReasonPhrase(), ex.getReason(), req));
     }
-
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<?> handleIllegalState(IllegalStateException ex, HttpServletRequest req) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(baseBody(409, "Conflict", ex.getMessage(), req));
+    }
     @ExceptionHandler(Exception.class)
     public ResponseEntity<?> handleUnexpected(Exception ex, HttpServletRequest req) {
         ex.printStackTrace(); // MVP-dev: logg til console

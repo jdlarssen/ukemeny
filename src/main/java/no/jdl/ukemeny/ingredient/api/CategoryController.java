@@ -1,6 +1,7 @@
 package no.jdl.ukemeny.ingredient.api;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
+import io.swagger.v3.oas.annotations.Operation;
 
 import no.jdl.ukemeny.ingredient.CategoryRepository;
 
@@ -18,6 +19,10 @@ public class CategoryController {
         this.repo = repo;
     }
 
+    @Operation(
+            summary = "List kategorier",
+            description = "Lister alle kategorier sortert etter sortOrder (og navn ved lik sortOrder)."
+    )
     @GetMapping
     public List<CategoryResponse> list() {
         return repo.findAllByOrderBySortOrderAscNameAsc().stream()
