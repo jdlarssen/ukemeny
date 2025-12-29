@@ -1,4 +1,8 @@
+// IngredientController.java
 package no.jdl.ukemeny.ingredient.api;
+
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
@@ -13,6 +17,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/ingredients")
+@Tag(name = "Ingredients", description = "Ingrediens-vedlikehold (liste, kategorisering, sletting)")
 public class IngredientController {
 
     private final IngredientService service;
@@ -22,6 +27,10 @@ public class IngredientController {
     }
 
     @GetMapping
+    @Operation(
+            summary = "List ingredienser",
+            description = "Lister alle ingredienser med kategori. Sortert etter category.sortOrder og deretter navn."
+    )
     public List<IngredientResponse> list() {
         return service.list();
     }
@@ -30,6 +39,10 @@ public class IngredientController {
 
     @PatchMapping("/{id}/category")
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(
+            summary = "Sett kategori på ingrediens (single)",
+            description = "Oppdaterer categoryId for én ingrediens."
+    )
     public void setCategory(@PathVariable Long id, @RequestBody @Valid SetCategoryRequest req) {
         service.setCategory(id, req.categoryId());
     }
@@ -45,12 +58,20 @@ public class IngredientController {
 
     @PatchMapping("/category")
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(
+            summary = "Sett kategori på ingredienser (bulk)",
+            description = "Bulk-oppdatering av kategori for flere ingredienser i én request. Feiler med 404 hvis en ingredientId/categoryId ikke finnes."
+    )
     public void bulkSetCategory(@RequestBody @Valid BulkSetCategoryRequest req) {
         service.setCategories(req.updates());
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(
+            summary = "Slett ingrediens (kun hvis ubrukt)",
+            description = "Sletter ingrediens hvis den ikke brukes av noen oppskrift. Returnerer 409 Conflict hvis den er i bruk."
+    )
     public void delete(@PathVariable Long id) {
         service.deleteIfUnused(id);
     }

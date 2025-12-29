@@ -1,11 +1,14 @@
 package no.jdl.ukemeny.ingredient.api;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import no.jdl.ukemeny.ingredient.CategoryRepository;
 
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+@Tag(name = "Categories", description = "Kategorier (sortert etter sortOrder)")
 @RestController
 @RequestMapping("/categories")
 public class CategoryController {

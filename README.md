@@ -84,12 +84,12 @@ Workflow starter Postgres som en service-container og kjører
 ```
 Test-profilen ligger i:
 - `src/test/resources/application-test.properties`
-## API-dokumentasjon (Swagger / OpenAPI)
+## Swagger / OpenAPI
+Når appen kjører lokalt kan du åpne:
 
-Når appen kjører lokalt, får du automatisk generert API-dokumentasjon:
+- Swagger UI: `http://localhost:8080/swagger-ui/index.html`
+- OpenAPI JSON: `http://localhost:8080/v3/api-docs`
 
-- Swagger UI: http://localhost:8080/swagger-ui/index.html
-- OpenAPI JSON: http://localhost:8080/v3/api-docs
 
 Tips:
 - Hvis du kjører på en annen port enn 8080, bytt ut porten i URL-ene over.
