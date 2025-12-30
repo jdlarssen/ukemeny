@@ -116,6 +116,107 @@ class ShoppingListIntegrationTests {
         }
         assertThat(days).containsExactly(1, 2);
     }
+    @Test
+    void patchDinner_updatesRecipeLockedAndNote() throws Exception {
+        // Lag to oppskrifter
+        long r1 = postRecipe("Patch Taco A", "Test", List.of(
+                item("Kjøttdeig", new BigDecimal("400"), "g", null)
+        ));
+
+        long r2 = postRecipe("Patch Taco B", "Test", List.of(
+                item("Kjøttdeig", new BigDecimal("200"), "g", null)
+        ));
+
+        // Opprett ukemeny på en mandag, dag 1 = r1
+        LocalDate monday = randomMonday();
+        long menuId = postWeeklyMenu(monday, List.of(
+                dinner(1, r1, false, null)
+        ));
+
+        // PATCH dag 1 -> bytt til r2 + lås + note
+        patchJson("/weekly-menus/" + menuId + "/dinners/1", Map.of(
+                "recipeId", r2,
+                "locked", true,
+                "note", "Byttet til taco"
+        ));
+
+        // Verifiser med GET at verdiene er oppdatert
+        JsonNode menu = getJson("/weekly-menus/" + menuId);
+        JsonNode dinners = menu.get("dinners");
+
+        JsonNode day1 = null;
+        for (JsonNode d : dinners) {
+            if (d.get("dayOfWeek").asInt() == 1) {
+                day1 = d;
+                break;
+            }
+        }
+
+        assertThat(day1).isNotNull();
+        assertThat(day1.get("recipeId").asLong()).isEqualTo(r2);
+        assertThat(day1.get("locked").asBoolean()).isTrue();
+        assertThat(day1.get("note").asText()).isEqualTo("Byttet til taco");
+    }
+    @Test
+    void patchDinner_rejectsDayOfWeekOutsideRange() throws Exception {
+        long r1 = postRecipe("Patch Range A", "Test", List.of(
+                item("Kjøttdeig", new BigDecimal("100"), "g", null)
+        ));
+
+        long menuId = postWeeklyMenu(randomMonday(), List.of(
+                dinner(1, r1, false, null)
+        ));
+
+        // dayOfWeek=0 (ugyldig) -> service kaster IllegalArgumentException -> 400
+        HttpHeaders h = new HttpHeaders();
+        h.setContentType(MediaType.APPLICATION_JSON);
+        HttpEntity<String> req = new HttpEntity<>(om.writeValueAsString(Map.of(
+                "recipeId", r1,
+                "locked", false,
+                "note", "x"
+        )), h);
+
+        ResponseEntity<String> res = http.exchange(
+                "/weekly-menus/" + menuId + "/dinners/0",
+                HttpMethod.PATCH,
+                req,
+                String.class
+        );
+
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(res.getBody()).contains("dayOfWeek must be between 1 and 7");
+    }
+
+    @Test
+    void patchDinner_returns404WhenRecipeDoesNotExist() throws Exception {
+        long r1 = postRecipe("Patch 404 A", "Test", List.of(
+                item("Kjøttdeig", new BigDecimal("100"), "g", null)
+        ));
+
+        long menuId = postWeeklyMenu(randomMonday(), List.of(
+                dinner(1, r1, false, null)
+        ));
+
+        long missingRecipeId = 9_999_999L;
+
+        HttpHeaders h = new HttpHeaders();
+        h.setContentType(MediaType.APPLICATION_JSON);
+        HttpEntity<String> req = new HttpEntity<>(om.writeValueAsString(Map.of(
+                "recipeId", missingRecipeId,
+                "locked", true,
+                "note", "skal feile"
+        )), h);
+
+        ResponseEntity<String> res = http.exchange(
+                "/weekly-menus/" + menuId + "/dinners/1",
+                HttpMethod.PATCH,
+                req,
+                String.class
+        );
+
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(res.getBody()).contains("Recipe not found: " + missingRecipeId);
+    }
 
     // ---------- helpers ----------
 
@@ -191,8 +292,11 @@ class ShoppingListIntegrationTests {
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
     }
     private LocalDate randomMonday() {
-        // 2099-01-04 er en mandag. Legg på et “tilfeldig” antall uker for unikhet.
-        int weeks = Math.floorMod(UUID.randomUUID().hashCode(), 5000);
-        return LocalDate.of(2099, 1, 4).plusWeeks(weeks);
+        // Velg en tilfeldig dato, og "snap" den til nærmeste mandag (samme eller neste).
+        int days = Math.floorMod(UUID.randomUUID().hashCode(), 365 * 50); // ~50 år spenn
+        return LocalDate.of(2000, 1, 1)
+                .plusDays(days)
+                .with(java.time.temporal.TemporalAdjusters.nextOrSame(java.time.DayOfWeek.MONDAY));
     }
+
 }

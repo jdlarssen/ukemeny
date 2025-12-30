@@ -3,10 +3,8 @@ package no.jdl.ukemeny.weeklymenu.api;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-
 import jakarta.validation.Valid;
 import no.jdl.ukemeny.weeklymenu.WeeklyMenuService;
-
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
@@ -48,6 +46,20 @@ public class WeeklyMenuController {
     )
     public WeeklyMenuResponse get(@PathVariable Long id) {
         return service.get(id);
+    }
+
+    @PatchMapping("/{id}/dinners/{dayOfWeek}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(
+            summary = "Oppdater middag (bytt recipe + locked + note)",
+            description = "Oppdaterer én dag i ukemenyen. dayOfWeek er 1-7. Setter recipeId/locked/note."
+    )
+    public void updateDinner(
+            @PathVariable Long id,
+            @PathVariable int dayOfWeek,
+            @Valid @RequestBody UpdateWeeklyMenuDayRequest request
+    ) {
+        service.updateDinner(id, dayOfWeek, request);
     }
 
     @GetMapping("/{id}/shopping-list")

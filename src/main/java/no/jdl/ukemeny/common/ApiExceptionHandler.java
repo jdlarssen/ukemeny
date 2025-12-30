@@ -9,6 +9,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -51,11 +52,18 @@ public class ApiExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(baseBody(409, "Conflict", ex.getMessage(), req));
     }
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<?> handleNoResource(NoResourceFoundException ex, HttpServletRequest req) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(baseBody(404, "Not Found", ex.getMessage(), req));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<?> handleUnexpected(Exception ex, HttpServletRequest req) {
         ex.printStackTrace(); // MVP-dev: logg til console
+        var msg = ex.getClass().getSimpleName() + ": " + (ex.getMessage() == null ? "(no message)" : ex.getMessage());
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(baseBody(500, "Internal Server Error", "Unexpected error", req));
+                .body(baseBody(500, "Internal Server Error", msg, req));
     }
 
     private Map<String, Object> baseBody(int status, String error, String message, HttpServletRequest req) {

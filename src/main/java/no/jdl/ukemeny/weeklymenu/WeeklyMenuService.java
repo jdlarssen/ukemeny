@@ -65,6 +65,29 @@ public class WeeklyMenuService {
         return new WeeklyMenuResponse(menu.getId(), menu.getWeekStartDate(), dinners);
     }
     @Transactional
+    public void updateDinner(Long weeklyMenuId, int dayOfWeek, UpdateWeeklyMenuDayRequest req) {
+        if (dayOfWeek < 1 || dayOfWeek > 7) {
+            throw new IllegalArgumentException("dayOfWeek must be between 1 and 7");
+        }
+
+        var menu = weeklyMenuRepository.findByIdWithEntries(weeklyMenuId)
+                .orElseThrow(() -> new NotFoundException("Weekly menu not found: " + weeklyMenuId));
+
+        var entry = menu.getEntries().stream()
+                .filter(e -> e.getDayOfWeek() == dayOfWeek)
+                .findFirst()
+                .orElseThrow(() -> new NotFoundException(
+                        "Weekly menu entry not found for dayOfWeek " + dayOfWeek + " in weekly menu " + weeklyMenuId
+                ));
+
+        var recipe = recipeRepository.findById(req.recipeId())
+                .orElseThrow(() -> new NotFoundException("Recipe not found: " + req.recipeId()));
+
+        entry.setRecipe(recipe);
+        entry.setLocked(req.locked());
+        entry.setNote(req.note());
+    }
+    @Transactional
     public Long generate(java.time.LocalDate weekStartDate) {
         if (weekStartDate.getDayOfWeek() != DayOfWeek.MONDAY){
             throw new IllegalArgumentException("weekStartDate must be a Monday");

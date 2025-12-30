@@ -27,7 +27,8 @@ public class WeeklyMenuEntry {
     @Column(name = "locked", nullable = false)
     private boolean locked = false;
 
-    protected WeeklyMenuEntry() {}
+    protected WeeklyMenuEntry() {
+    }
 
     public WeeklyMenuEntry(int dayOfWeek, Recipe recipe, String note) {
         this.dayOfWeek = dayOfWeek;
@@ -39,11 +40,35 @@ public class WeeklyMenuEntry {
         this.weeklyMenu = weeklyMenu;
     }
 
-    public boolean isLocked() { return locked; }
-    public void setLocked(boolean locked) { this.locked = locked; }
+    public boolean isLocked() {
+        return locked;
+    }
 
-    public Long getId() { return id; }
-    public int getDayOfWeek() { return dayOfWeek; }
-    public Recipe getRecipe() { return recipe; }
-    public String getNote() { return note; }
+    public void setLocked(boolean locked) {
+        this.locked = locked;
+    }
+
+    public void setRecipe(Recipe recipe) {
+        this.recipe = recipe;
+    }
+
+    public void setNote(String note) {
+        this.note = note;
+    }
+
+    public Long getId() {
+        return id;
+    }
+
+    public int getDayOfWeek() {
+        return dayOfWeek;
+    }
+
+    public Recipe getRecipe() {
+        return recipe;
+    }
+
+    public String getNote() {
+        return note;
+    }
 }

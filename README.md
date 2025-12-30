@@ -163,6 +163,19 @@ curl -i -X POST "http://localhost:8080/weekly-menus/generate" \
 ```bash 
 curl "http://localhost:8080/weekly-menus/4"
 ```
+#### Oppdater middag (bytt recipe + locked + note)
+```bash
+curl -i -X PATCH "http://localhost:8080/weekly-menus/7/dinners/1" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "recipeId": 26,
+    "locked": true,
+    "note": "Byttet til taco"
+  }'
+```
+- `dayOfWeek`: 1=Mandag ... 7=Søndag
+- `locked=true` betyr at dagen er "låst" (ment for regenerering senere: ikke overskriv låste dager)
+
 #### Handleliste
 ```bash
 curl "http://localhost:8080/weekly-menus/4/shopping-list"
