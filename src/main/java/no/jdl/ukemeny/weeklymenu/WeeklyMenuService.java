@@ -4,14 +4,15 @@ import no.jdl.ukemeny.common.NotFoundException;
 import no.jdl.ukemeny.recipe.RecipeRepository;
 import no.jdl.ukemeny.weeklymenu.api.*;
 
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.data.domain.PageRequest;
 
 import java.math.BigDecimal;
 import java.time.DayOfWeek;
 import java.util.*;
 import java.util.stream.Collectors;
+
 
 @Service
 public class WeeklyMenuService {
@@ -170,6 +171,118 @@ public class WeeklyMenuService {
 
         return weeklyMenuRepository.save(menu).getId();
     }
+    @Transactional
+    public WeeklyMenuResponse regenerateUnlocked(Long weeklyMenuId) {
+        var menu = weeklyMenuRepository.findByIdWithEntries(weeklyMenuId)
+                .orElseThrow(() -> new NotFoundException("Weekly menu not found: " + weeklyMenuId));
+
+        // Finn hvilke oppskrifter som er brukt i forrige uke (for variasjon)
+        var previousOpt = weeklyMenuRepository
+                .findPrevious(menu.getWeekStartDate(), PageRequest.of(0, 1))
+                .stream()
+                .findFirst();
+
+        Set<Long> previousRecipeIds = Collections.emptySet();
+        if (previousOpt.isPresent()) {
+            var prev = weeklyMenuRepository.findByIdWithEntries(previousOpt.get().getId())
+                    .orElse(previousOpt.get());
+
+            previousRecipeIds = prev.getEntries().stream()
+                    .map(e -> e.getRecipe().getId())
+                    .collect(Collectors.toSet());
+        }
+        final Set<Long> prevIds = previousRecipeIds;
+
+        var allIds = recipeRepository.findAllIds();
+        if (allIds.isEmpty()) {
+            throw new IllegalArgumentException("No recipes exist. Create at least 1 recipe first.");
+        }
+
+        // Dager som skal beholdes (låste)
+        var lockedRecipeIds = menu.getEntries().stream()
+                .filter(WeeklyMenuEntry::isLocked)
+                .map(e -> e.getRecipe().getId())
+                .collect(Collectors.toSet());
+
+        // Dager som skal byttes (ulåste)
+        var unlockedEntries = menu.getEntries().stream()
+                .filter(e -> !e.isLocked())
+                .sorted(Comparator.comparingInt(WeeklyMenuEntry::getDayOfWeek))
+                .toList();
+
+        if (unlockedEntries.isEmpty()) {
+            // Ingenting å gjøre, men returner oppdatert view
+            return get(menu.getId());
+        }
+
+        // Kandidater: prøv først "fresh" (ikke brukt forrige uke), og ikke de som er låst denne uka
+        var rng = new Random();
+
+        var fresh = allIds.stream()
+                .filter(id -> !prevIds.contains(id))
+                .filter(id -> !lockedRecipeIds.contains(id))
+                .collect(Collectors.toCollection(ArrayList::new));
+
+        var used = allIds.stream()
+                .filter(prevIds::contains)
+                .filter(id -> !lockedRecipeIds.contains(id))
+                .collect(Collectors.toCollection(ArrayList::new));
+
+        Collections.shuffle(fresh, rng);
+        Collections.shuffle(used, rng);
+
+        // Velg nye recipeIds til ulåste dager (unngå duplikater der det er mulig)
+        var picked = new ArrayList<Long>();
+
+        var pool = new ArrayList<Long>();
+        pool.addAll(fresh);
+        pool.addAll(used);
+
+        // Hvis pool er tom (f.eks. alle oppskrifter er låst), må vi tillate bruk av låste oppskrifter også
+        if (pool.isEmpty()) {
+            pool = new ArrayList<>(allIds);
+            Collections.shuffle(pool, rng);
+        }
+
+        // Plukk så mange vi trenger
+        while (picked.size() < unlockedEntries.size()) {
+            // Hvis vi går tom og trenger flere (få oppskrifter), tillat repeats
+            if (pool.isEmpty()) {
+                picked.add(allIds.get(rng.nextInt(allIds.size())));
+                continue;
+            }
+
+            var candidate = pool.remove(0);
+
+            // Unngå repeats i picked hvis mulig
+            if (!picked.contains(candidate) || allIds.size() < unlockedEntries.size()) {
+                picked.add(candidate);
+            }
+        }
+
+        // Bulk-fetch
+        var recipes = recipeRepository.findAllById(picked);
+        var byId = new HashMap<Long, no.jdl.ukemeny.recipe.Recipe>();
+        for (var r : recipes) byId.put(r.getId(), r);
+
+        // Oppdater entries (kun ulåste)
+        for (int i = 0; i < unlockedEntries.size(); i++) {
+            var entry = unlockedEntries.get(i);
+            var recipeId = picked.get(i);
+            var recipe = byId.get(recipeId);
+            if (recipe == null) {
+                throw new IllegalArgumentException("Recipe not found during regeneration: " + recipeId);
+            }
+            entry.setRecipe(recipe);
+            // locked=false beholdes
+        }
+
+        // lagre (ikke strengt nødvendig med JPA + @Transactional, men ok å være eksplisitt)
+        weeklyMenuRepository.save(menu);
+
+        return get(menu.getId());
+    }
+
     @Transactional(readOnly = true)
     public ShoppingListResponse shoppingList(Long weeklyMenuId) {
         var menu = weeklyMenuRepository.findByIdWithEntries(weeklyMenuId)

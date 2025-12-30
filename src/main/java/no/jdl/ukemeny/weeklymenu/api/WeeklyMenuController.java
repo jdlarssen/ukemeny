@@ -39,6 +39,16 @@ public class WeeklyMenuController {
         return new CreateWeeklyMenuResponse(service.generate(request.weekStartDate()));
     }
 
+    @PostMapping("/{id}/regenerate")
+    @ResponseStatus(HttpStatus.OK)
+    @Operation(
+            summary = "Regenerer ukemeny (kun ulåste dager)",
+            description = "Bytter kun ut middager der locked=false. Låste dager beholdes."
+    )
+    public WeeklyMenuResponse regenerate(@PathVariable Long id) {
+        return service.regenerateUnlocked(id);
+    }
+
     @GetMapping("/{id}")
     @Operation(
             summary = "Hent ukemeny",
