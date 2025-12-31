@@ -31,8 +31,12 @@ public class IngredientController {
             summary = "List ingredienser",
             description = "Lister alle ingredienser med kategori. Sortert etter category.sortOrder og deretter navn."
     )
-    public List<IngredientResponse> list() {
-        return service.list();
+    public List<IngredientResponse> list(
+            @RequestParam(required = false) String query,
+            @RequestParam(required = false) Long categoryId,
+            @RequestParam(required = false) Boolean unused
+    ) {
+        return service.list(query, categoryId, unused);
     }
 
     public record SetCategoryRequest(@NotNull Long categoryId) {}

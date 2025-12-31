@@ -10,8 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 import static org.springframework.http.HttpStatus.CONFLICT;
 
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -58,8 +57,23 @@ public class IngredientService {
     }
 
     @Transactional(readOnly = true)
-    public List<no.jdl.ukemeny.ingredient.api.IngredientResponse> list() {
-        return repo.findAllWithCategoryOrdered().stream()
+    public List<IngredientResponse> list(String query, Long categoryId, Boolean unused) {
+        var all = repo.findAllWithCategoryOrdered();
+
+        final Set<Long> usedIds = (unused == null)
+                ? Collections.emptySet()
+                : new HashSet<>(repo.findUsedIngredientIds());
+
+        final String q = (query == null) ? null : query.trim().toLowerCase();
+
+        return all.stream()
+                .filter(i -> q == null || q.isBlank() || i.getName().toLowerCase().contains(q))
+                .filter(i -> categoryId == null || i.getCategory().getId().equals(categoryId))
+                .filter(i -> {
+                    if (unused == null) return true;
+                    boolean isUnused = !usedIds.contains(i.getId());
+                    return unused ? isUnused : !isUnused;
+                })
                 .map(i -> new IngredientResponse(
                         i.getId(),
                         i.getName(),

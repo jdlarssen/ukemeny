@@ -14,7 +14,7 @@ public interface IngredientRepository extends JpaRepository<Ingredient, Long> {
         from Ingredient i 
         join fetch i.category c
         order by c.sortOrder asc, lower(i.name) asc
-        """)
+    """)
     List<Ingredient> findAllWithCategoryOrdered();
     Optional<Ingredient> findByNameIgnoreCase(String name);
 
@@ -22,6 +22,12 @@ public interface IngredientRepository extends JpaRepository<Ingredient, Long> {
         select (count(ri) > 0 )
         from RecipeItem ri
         where ri.ingredient.id = :ingredientId
-        """)
+    """)
     boolean isUsedInAnyRecipe(@Param("ingredientId") Long ingredientId);
+
+    @Query("""
+        select distinct ri.ingredient.id
+        from RecipeItem ri
+    """)
+    List<Long> findUsedIngredientIds();
 }
