@@ -135,4 +135,20 @@ public class IngredientService {
         }
         repo.delete(ingredient);
     }
+    @Transactional
+    public int deleteUnused(Optional<Integer> limitOpt) {
+        int limit = limitOpt.orElse(200);
+
+        var unusedIds = repo.findUnusedIngredientIds();
+        if (unusedIds.isEmpty()) return 0;
+
+        // begrens antall for sikkerhet
+        if (unusedIds.size() > limit) {
+            unusedIds = unusedIds.subList(0, limit);
+        }
+
+        // Bulk delete
+        repo.deleteAllByIdInBatch(unusedIds);
+        return unusedIds.size();
+    }
 }

@@ -30,4 +30,19 @@ public interface IngredientRepository extends JpaRepository<Ingredient, Long> {
         from RecipeItem ri
     """)
     List<Long> findUsedIngredientIds();
+
+    @Query("""
+    select i.id
+    from Ingredient i
+    where not exists (
+        select 1
+        from RecipeItem ri
+        where ri.ingredient = i
+    )
+    order by lower(i.name) asc
+    """)
+    List<Long> findUnusedIngredientIds();
+
+    void deleteAllByIdInBatch(Iterable<Long> ids);
+
 }

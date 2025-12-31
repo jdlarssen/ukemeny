@@ -79,4 +79,9 @@ public class IngredientController {
     public void delete(@PathVariable Long id) {
         service.deleteIfUnused(id);
     }
+
+    @GetMapping("/unused")
+    public List<IngredientResponse> listUnused() {
+        return service.list(null, null, true);
+    }
 }
