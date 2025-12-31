@@ -6,6 +6,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Collection;
 
 public interface IngredientRepository extends JpaRepository<Ingredient, Long> {
 
@@ -45,4 +46,10 @@ public interface IngredientRepository extends JpaRepository<Ingredient, Long> {
 
     void deleteAllByIdInBatch(Iterable<Long> ids);
 
+    @Query("""
+    select distinct ri.ingredient.id
+    from RecipeItem ri
+    where ri.ingredient.id in :ids
+    """)
+    List<Long> findUsedIngredientIdsIn(@Param("ids") Collection<Long> ids);
 }

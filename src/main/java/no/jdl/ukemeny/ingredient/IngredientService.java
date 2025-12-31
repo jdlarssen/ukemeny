@@ -125,6 +125,7 @@ public class IngredientService {
             ing.setCategory(cat);
         }
     }
+
     @Transactional
     public void deleteIfUnused(Long id) {
         var ingredient = repo.findById(id)
@@ -150,5 +151,39 @@ public class IngredientService {
         // Bulk delete
         repo.deleteAllByIdInBatch(unusedIds);
         return unusedIds.size();
+    }
+    @Transactional
+    public no.jdl.ukemeny.ingredient.api.BulkDeleteUnusedIngredientsResponse bulkDeleteUnused(List<Long> ingredientIds) {
+        if (ingredientIds == null || ingredientIds.isEmpty()) {
+            return new no.jdl.ukemeny.ingredient.api.BulkDeleteUnusedIngredientsResponse(
+                    List.of(), List.of(), List.of()
+            );
+        }
+
+        List<Long> deleted = new ArrayList<>();
+        List<Long> skippedUsed = new ArrayList<>();
+        List<Long> skippedNotFound = new ArrayList<>();
+
+        for (Long id : ingredientIds) {
+            if (id == null) continue;
+
+            var ingredientOpt = repo.findById(id);
+            if (ingredientOpt.isEmpty()) {
+                skippedNotFound.add(id);
+                continue;
+            }
+
+            if (repo.isUsedInAnyRecipe(id)) {
+                skippedUsed.add(id);
+                continue;
+            }
+
+            repo.delete(ingredientOpt.get());
+            deleted.add(id);
+        }
+
+        return new no.jdl.ukemeny.ingredient.api.BulkDeleteUnusedIngredientsResponse(
+                deleted, skippedUsed, skippedNotFound
+        );
     }
 }
