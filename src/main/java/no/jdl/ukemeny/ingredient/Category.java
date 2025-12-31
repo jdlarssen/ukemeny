@@ -1,4 +1,5 @@
 package no.jdl.ukemeny.ingredient;
+
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 
@@ -14,6 +15,9 @@ public class Category {
     @Column(nullable = false, unique = true)
     private String name;
 
+    @Column(name = "sort_order", nullable = false)
+    private int sortOrder = 1000;
+
     protected Category() {}
 
     public Category(String name) {
@@ -22,10 +26,13 @@ public class Category {
 
     public Long getId() { return id; }
     public String getName() { return name; }
-
-    @Column(name = "sort_order", nullable = false)
-    private int sortOrder = 1000;
-
     public int getSortOrder() { return sortOrder; }
-    void setSortOrder(int sortOrder) { this.sortOrder = sortOrder; }
+
+    public void setName(String name) {          // <-- legg til
+        this.name = name;
+    }
+
+    public void setSortOrder(int sortOrder) {   // <-- gjør public
+        this.sortOrder = sortOrder;
+    }
 }
