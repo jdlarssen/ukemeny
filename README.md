@@ -211,6 +211,59 @@ curl -i -X PATCH "http://localhost:8080/ingredients/category" \
 curl -i -X DELETE "http://localhost:8080/ingredients/<ID>"
 ```
 
+## Data model + design choices
+### Datamodell (oversikt)
+Domeneobjektene er bevisst holdt "små", med tydelige koblinger:
+```text
+Category (id, name, sortOrder)
+   1 ────────* Ingredient (id, name, category_id)
+
+Recipe (id, name, description, ...)
+   1 ────────* RecipeItem (id, recipe_id, ingredient_id, amount, unit)
+                     *────────1 Ingredient
+
+WeeklyMenu (id, weekStartDate)
+   1 ────────* WeeklyMenuEntry (id, weekly_menu_id, dayOfWeek, recipe_id, locked, note)
+                     *────────1 Recipe
+
+```
+### Viktige relasjoner og felt
+- Category
+  - `name` + `sortOrder` (sortering i handleliste og kategori-listing)
+- Ingredient
+  - Har alltid en `Category`
+  - `name` er unikt case-insensitivt (se under)
+- Recipe
+  - Inneholder `RecipeItem`-rader (ingredienser og mengde)
+- RecipeItem
+  - Kobler `Recipe` ↔ `Ingredient`
+  - Felt: `amount` (BigDecimal) + `unit` (String)
+- WeeklyMenu
+  - Felt: `weekStartDate` (må være mandag)
+  - Har 7 "dager" via `WeeklyMenuEntry`
+- WeeklyMenuEntry
+  - Felt: `dayOfWeek`(1-7), `locked`(om dagen skal beholdes ved regenerering), `note`(valgfritt)
+  - Kobler en dag til en bestemt `Recipe`
+
+### Constraints og validering
+- Ukemeny startdato
+  - `weekStartDate` må være mandag
+- En middag per dag
+  - DB håndhever at samme ukemeny ikke kan ha flere entries for samme `dayOfWeek`
+  - (typisk via `UNIQUE(weekly_menu_id, day_of_week)`)
+### Designvalg
+- Tydelig deling mellom "masterdata" og "planlegging"
+  - `Category/Ingredient/Recipe` er masterdata
+  - `WeeklyMenu` og `WeeklyMenuEntry` er planlegging per uke
+- Regenerering av ukemeny
+  - Ved "regenerate unlocked days" beholdes låste dager, og kun ulåste byttes ut
+  - Algoritmen prøver å gi variasjon (unngå forrige uke) når mulig
+- Enkle API-responser
+  - API-returner er ofte "view-modeller" (responses) som inkluderer nødvendige felter for klienten
+  - F.eks. ukemeny-dag returnerer både `recipeId` og `recipeName` for enklere UI
+- Flyway for database-endringer
+  - Skjema og seed-data styres via migrasjoner for repeterbarhet og konsistente miljøer
+
 ## Notater / MVP-avgrensninger
 - Kun middag (ingen frokost/lunsj)
   - Porsjoner er ikke modellert i MVP (antatt 2 porsjoner)
