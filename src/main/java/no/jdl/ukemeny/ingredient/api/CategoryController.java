@@ -40,8 +40,8 @@ public class CategoryController {
     )
     @PatchMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void patch(@PathVariable Long id, @RequestBody UpdateCategoryRequest req) {
+    public void patch(@PathVariable Long id,
+                      @Valid @RequestBody(required = false) UpdateCategoryRequest req) {
         service.patch(id, req);
     }
-
 }

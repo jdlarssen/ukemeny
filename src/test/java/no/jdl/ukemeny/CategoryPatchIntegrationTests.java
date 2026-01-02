@@ -19,6 +19,8 @@ class CategoryPatchIntegrationTests {
 
     @Autowired TestRestTemplate http;
     @Autowired ObjectMapper om;
+    @Autowired no.jdl.ukemeny.ingredient.CategoryRepository categoryRepo;
+
 
     @Test
     void patchCategory_updatesSortOrder_andIsReflectedInList() throws Exception {
@@ -69,6 +71,43 @@ class CategoryPatchIntegrationTests {
         // PATCH med name (må være non-blank)
         patchJsonExpect("/categories/" + idA, Map.of("name", collidingName), HttpStatus.CONFLICT);
     }
+    @Test
+    void patchCategory_emptyBody_returns400() throws Exception {
+        JsonNode cats = getJson("/categories");
+        long id = cats.get(0).get("id").asLong();
+
+        patchJsonExpect("/categories/" + id, Map.of(), HttpStatus.BAD_REQUEST);
+    }
+    @Test
+    void patchCategory_blankName_returns400() throws Exception {
+        JsonNode cats = getJson("/categories");
+        long id = cats.get(0).get("id").asLong();
+
+        patchJsonExpect("/categories/" + id, Map.of("name", "   "), HttpStatus.BAD_REQUEST);
+    }
+    @Test
+    void patchCategory_updatesName_only() throws Exception {
+        JsonNode before = getJson("/categories");
+        long id = before.get(0).get("id").asLong();
+        String oldName = before.get(0).get("name").asText();
+
+        String newName = oldName + " X"; // enkel, garantert endring
+
+        patchJsonExpect("/categories/" + id, Map.of("name", newName), HttpStatus.NO_CONTENT);
+
+        JsonNode after = getJson("/categories");
+        JsonNode updated = findById(after, id);
+
+        assertThat(updated.get("name").asText()).isEqualTo(newName);
+    }
+    @Test
+    void patchCategory_noBody_returns400() throws Exception {
+        JsonNode cats = getJson("/categories");
+        long id = cats.get(0).get("id").asLong();
+
+        patchNoBodyExpect("/categories/" + id, HttpStatus.BAD_REQUEST);
+    }
+
 
     // -------- helpers --------
 
@@ -101,5 +140,52 @@ class CategoryPatchIntegrationTests {
             }
         }
         return null;
+    }
+    private void patchNoBodyExpect(String path, HttpStatus expected) {
+        HttpHeaders h = new HttpHeaders();
+        h.setContentType(MediaType.APPLICATION_JSON);
+        HttpEntity<String> req = new HttpEntity<>(null, h);
+
+        ResponseEntity<String> res = http.exchange(path, HttpMethod.PATCH, req, String.class);
+
+        if (!res.getStatusCode().equals(expected)) {
+            throw new AssertionError(
+                    "PATCH " + path + " expected " + expected +
+                            " but got " + res.getStatusCode() +
+                            " body=" + res.getBody()
+            );
+        }
+    }
+    private void assertCategoriesSortedBySortOrder(JsonNode categories) {
+        // categories = arrayen fra /weekly-menus/{id}/shopping-list (root.get("categories"))
+        List<String> namesInOrder = new ArrayList<>();
+        for (JsonNode c : categories) {
+            // I shopping-list response heter feltet typisk "categoryName"
+            String name = c.get("categoryName").asText();
+            namesInOrder.add(name);
+        }
+
+        // Hent sortOrder fra DB (via CategoryRepository)
+        List<Integer> sortOrdersInOrder = new ArrayList<>();
+        for (String name : namesInOrder) {
+            int sort = categoryRepo.findByNameIgnoreCase(name)
+                    .orElseThrow(() -> new AssertionError("Category not found in DB: " + name))
+                    .getSortOrder();
+            sortOrdersInOrder.add(sort);
+        }
+
+        // Verifiser sortering: sortOrder asc, og ved likhet name asc (case-insensitive)
+        for (int i = 1; i < namesInOrder.size(); i++) {
+            int prevSort = sortOrdersInOrder.get(i - 1);
+            int currSort = sortOrdersInOrder.get(i);
+
+            assertThat(prevSort).isLessThanOrEqualTo(currSort);
+
+            if (prevSort == currSort) {
+                String prevName = namesInOrder.get(i - 1);
+                String currName = namesInOrder.get(i);
+                assertThat(prevName.compareToIgnoreCase(currName)).isLessThanOrEqualTo(0);
+            }
+        }
     }
 }

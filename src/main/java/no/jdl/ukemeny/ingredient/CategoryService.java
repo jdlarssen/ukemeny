@@ -34,6 +34,9 @@ public class CategoryService {
 
         if (req.name() != null) {
             var trimmed = req.name().trim();
+            if (trimmed.isBlank()) {
+                throw new IllegalArgumentException("name must not be blank");
+            }
             category.setName(trimmed);
         }
 
@@ -41,15 +44,9 @@ public class CategoryService {
             category.setSortOrder(req.sortOrder());
         }
 
-        if (req.sortOrder() != null && req.sortOrder() < 0) {
-            throw new IllegalArgumentException("sortOrder must be >= 0");
-        }
-
-        // Tving flush så du får feil her og ikke "senere"
-        // DB-en din har case-insensitive unique index -> kan gi DataIntegrityViolationException ved dup.
         try {
             repo.flush();
-        } catch (DataIntegrityViolationException e) {
+        } catch (org.springframework.dao.DataIntegrityViolationException e) {
             throw new ResponseStatusException(CONFLICT, "Category name already exists (case-insensitive)", e);
         }
     }

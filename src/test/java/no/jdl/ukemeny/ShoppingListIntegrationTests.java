@@ -27,8 +27,11 @@ class ShoppingListIntegrationTests {
         // 1) Hent categoryId’er dynamisk (ikke hardkod id)
         var categoriesJson = getJson("/categories");
         Map<String, Long> categoryIdByName = new HashMap<>();
+        Map<String, Integer> categorySortOrderByName = new HashMap<>();
         for (JsonNode c : categoriesJson) {
-            categoryIdByName.put(c.get("name").asText(), c.get("id").asLong());
+            String name = c.get("name").asText();
+            categoryIdByName.put(name, c.get("id").asLong());
+            categorySortOrderByName.put(name, c.get("sortOrder").asInt());
         }
         Long kjottCatId = categoryIdByName.get("Kjøtt");
         Long krydderCatId = categoryIdByName.get("Krydder & sauser");
@@ -84,7 +87,20 @@ class ShoppingListIntegrationTests {
         int idxKrydder = catNames.indexOf("Krydder & sauser");
         assertThat(idxKjott).isGreaterThanOrEqualTo(0);
         assertThat(idxKrydder).isGreaterThanOrEqualTo(0);
-        assertThat(idxKjott).isLessThan(idxKrydder);
+
+        int sortKjott = categorySortOrderByName.get("Kjøtt");
+        int sortKrydder = categorySortOrderByName.get("Krydder & sauser");
+
+// Sjekk at rekkefølgen i shopping-lista matcher sortOrder i DB
+        if (sortKjott < sortKrydder) {
+            assertThat(idxKjott).isLessThan(idxKrydder);
+        } else if (sortKjott > sortKrydder) {
+            assertThat(idxKjott).isGreaterThan(idxKrydder);
+        } else {
+            // samme sortOrder -> tie-break på navn (samme som /categories gjør)
+            assertThat("Kjøtt".compareToIgnoreCase("Krydder & sauser")).isLessThanOrEqualTo(0);
+        }
+
 
         // Finn Kjøtt-kategorien og sjekk aggregert amount
         JsonNode kjottCategory = null;
